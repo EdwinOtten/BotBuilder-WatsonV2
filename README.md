@@ -1,3 +1,17 @@
+# NOTE: This is a fork in progress
+
+Please note that this is a fork of [Vincent Perrin's repository](https://github.com/vperrinfr/BotBuilder-Watson) that is using an older watson dependency. I am currently working on converting this so it works with IBM Watson Asisstant V2 API.
+
+.
+
+.
+
+.
+
+.
+
+.
+
 # A Microsoft Bot Framework & IBM Watson Bot sample
 
 A sample bot using Microsoft Bot framework as communication channel support and IBM Watson Conversation

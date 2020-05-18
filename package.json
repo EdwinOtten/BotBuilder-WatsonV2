@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js"
+    "build": "tsc",
+    "start": "npm run build && node built/app.js",
+    "lint": "tslint src/*.ts --quiet"
   },
   "config": {
     "unsafe-perm": true
@@ -16,6 +18,7 @@
     "npm": "> 6.x.x"
   },
   "dependencies": {
+    "@types/restify": "^8.4.2",
     "botbuilder": "^3.13.1",
     "botbuilder-azure": "^3.0.4",
     "dotenv": "^2.0.0",
@@ -24,5 +27,8 @@
     "osa-imessage": "^2.1.1",
     "restify": "^5.0.1",
     "sqlite3": "^4.0.8"
+  },
+  "devDependencies": {
+    "typescript": "^3.9.2"
   }
 }

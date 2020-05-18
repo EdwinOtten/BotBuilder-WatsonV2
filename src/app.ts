@@ -1,11 +1,11 @@
 /**
- * Copyright 2017 IBM Corp. All Rights Reserved.
+ * Copyright 2020 Edwin Otten
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,74 +14,72 @@
  * limitations under the License.
  */
 
-var restify = require('restify');
-var builder = require('botbuilder');
-const AssistantV2 = require('ibm-watson/assistant/v2');
-const watsonAuth = require('ibm-watson/auth');
+import * as restify from 'restify';
+import { UniversalBot, ChatConnector } from 'botbuilder';
+import { AzureBotStorage, DocumentDbClient } from 'botbuilder-azure';
+import * as AssistantV2 from 'ibm-watson/assistant/v2';
+import { getAuthenticatorFromEnvironment } from 'ibm-watson/auth';
+import { config } from "dotenv"
 
-require('dotenv').config({silent: true});
+config({silent: true});
 
 // set up Azure storegae for the bot
-var azure = require('botbuilder-azure'); 
-
 // storageKey and storageURL are required psrameters in the environment
-var storageKey=process.env.storageKey;
+const storageKey = process.env.storageKey;
 if (storageKey) {
-  console.log("process.env.storageKey "+ process.env.storageKey); 
+  console.log("process.env.storageKey "+ process.env.storageKey);
 } else {
   console.error('storageKey must be specified in environment');
   process.exit(1);
 }
-var storageURL=process.env.storageURL;
+const storageURL = process.env.storageURL;
 if (storageURL) {
-  console.log("process.env.storageURL "+ process.env.storageURL); 
+  console.log("process.env.storageURL "+ process.env.storageURL);
 } else {
   console.error('storageURL must be specified in environment');
   process.exit(1);
 }
 
-var documentDbOptions = {
-  host: storageURL, 
-  masterKey: storageKey, 
-  database: 'botdocs',   
+const documentDbOptions = {
+  host: storageURL,
+  masterKey: storageKey,
+  database: 'botdocs',
   collection: 'botdata'
 };
 
-var contexts= [];
-var docDbClient = new azure.DocumentDbClient(documentDbOptions);
-var cosmosStorage = new azure.AzureBotStorage({ gzipData: false }, docDbClient);
+const contexts= [];
+const docDbClient = new DocumentDbClient(documentDbOptions);
+const cosmosStorage = new AzureBotStorage({ gzipData: false }, docDbClient);
 
 // Setup Restify Server
-var server = restify.createServer();
-server.listen(process.env.port || process.env.PORT || 3978, function () {
-   console.log('%s listening to %s', server.name, server.url); 
+const server = restify.createServer();
+server.listen(process.env.port || process.env.PORT || 3978, () => {
+   console.log('%s listening to %s', server.name, server.url);
 });
 
 // Create the service wrapper
-var workspace = process.env.WORKSPACE_ID || '';
-var serviceUrl = process.env.SERVICE_URL || 'https://gateway.watsonplatform.net/assistant/api/';
-
 const assistant = new AssistantV2({
-    authenticator: new watsonAuth.getAuthenticatorFromEnvironment('ASSISTANT'),
-    serviceUrl: serviceUrl,
+    authenticator: getAuthenticatorFromEnvironment('ASSISTANT'),
+    serviceUrl: process.env.SERVICE_URL || 'https://gateway.watsonplatform.net/assistant/api/',
     version: '2020-04-01'
   });
 
-console.log("process.env.WORKSPACE_ID "+ workspace); 
-console.log("process.env.appID "+ process.env.appId); 
-console.log("process.env.appPassword "+ process.env.appPassword); 
+console.log("process.env.appID "+ process.env.appId);
+console.log("process.env.appPassword "+ process.env.appPassword);
 
 // Create chat connector for communicating with the Bot Framework Service
-var connector = new builder.ChatConnector({
+const connector = new ChatConnector({
     appId: process.env.appId,
     appPassword: process.env.appPassword
 });
 
-// Listen for messages from users 
+// Listen for messages from users
 server.post('/api/messages', connector.listen());
 
+const BAD_CHARS_REGEX = /[\t\n\r]/g
+
 // Receive messages from the user and respond by echoing each message back (prefixed with 'You said:')
-var bot = new builder.UniversalBot(connector, function (session) {
+const bot = new UniversalBot(connector, (session) => {
     console.log("conversation ID "+ session.message.address.conversation.id);
     console.log("Message detail:\n"+JSON.stringify(session.message, null, 2));
 
@@ -90,31 +88,29 @@ var bot = new builder.UniversalBot(connector, function (session) {
       session.message.text = session.message.text.substring(0, 2047)
     }
 
-    var regex = /[\t\n\r]/g
-    if (null != (bad_chars = session.message.text.match(regex))) {
-      console.warn('Input contans bad characters', bad_chars);
-      session.message.text = session.message.text.replace(regex, " ");
-    // } else {
-    //   console.log('No illegal characters in the input: '+session.message.text);
+    const badChars = session.message.text.match(BAD_CHARS_REGEX)
+    if (badChars != null) {
+      console.warn('Input contans bad characters', badChars);
+      session.message.text = session.message.text.replace(BAD_CHARS_REGEX, " ");
     }
 
     // If the user asked us to start over create a new context
-    if ((session.message.text.toLowerCase() == 'start over') || (session.message.text.toLowerCase() == 'start_over')) {
-      var convId = session.message.address.conversation.id;
+    if ((session.message.text.toLowerCase() === 'start over') || (session.message.text.toLowerCase() === 'start_over')) {
+      const convId = session.message.address.conversation.id;
       console.log('Starting a new Conversation for '+convId);
-      if (contexts[convId]) 
+      if (contexts[convId])
         delete contexts[convId];
     }
-  
+
     findOrCreateContext(session.message.address.conversation.id).then(
-      function (sessionId) {
+      (sessionId) => {
         if (!sessionId) sessionId = '0';
         // contexts[convId] = response.result.session_id; // store id for later access
 
         const params = {
           input: { text: session.message.text},
           assistantId: process.env.ASSISTANT_ID,
-          sessionId: sessionId
+          sessionId
         };
 
         assistant.message(params).then(
@@ -122,26 +118,26 @@ var bot = new builder.UniversalBot(connector, function (session) {
             console.log(response.headers['x-global-transaction-id']);
 
             console.log("Response:\n"+JSON.stringify(response, null, 2));
-            response.result.output.generic.forEach(function(runtimeResponseGeneric) {
+            response.result.output.generic.forEach((runtimeResponseGeneric) => {
               if (runtimeResponseGeneric.response_type === 'text') {
                 console.log('Sending: '+runtimeResponseGeneric.text);
                 session.send(runtimeResponseGeneric.text);
               }
             });
           //  session.send(response.output.text);
-            conversationContext.watsonContext = response.result.context.skills;
+          // conversationContext.watsonContext = response.result.context.skills;
           },
           err => {
             console.error(err);
             session.send("ERROR: "+err.message);
           }
         );
-      }.bind(this),
+      },
       (rejectionReason) => {
+        session.send(rejectionReason);
         console.log("fetch session id failed: "+rejectionReason)
       }
-    );	
-    
+    );
 
 }).set('storage', cosmosStorage);
 
@@ -153,7 +149,7 @@ function findOrCreateContext(convId) {
   }
 
   // No session found for user convId, let's fetch a new one
-  return new Promise((resolve, reject) => { 
+  return new Promise((resolve, reject) => {
     assistant.createSession({
       assistantId: process.env.ASSISTANT_ID
     }).then(
@@ -163,9 +159,8 @@ function findOrCreateContext(convId) {
       },
       err => {
         console.error(err);
-        session.send("ERROR: "+err.message);
         delete contexts[convId];
-        reject();
+        reject("ERROR: "+err.message);
       }
     );
   });

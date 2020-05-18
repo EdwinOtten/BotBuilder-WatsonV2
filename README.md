@@ -8,11 +8,12 @@ Please note that this is a fork of [Vincent Perrin's repository](https://github.
 | Task | Status |
 |------|--------|
 | Update IBM SDK (replace `watson-developer-cloud` with `ibm-watson` package) | ✅ Done |
-| Update README | 🔄 In progress |
+| Update README | ✅ Done |
+| Convert project to typescript | 🔄 In progress |
 | Fix session management (application now creates a new session with IBM for every user message) | To do |
-| Update Bot Framework Node.js SDK (`bot-builder`) to 4.x.x | To do |
 | Add other storage options for state besides CosmosDB | To do |
 | Update README | To do |
+| Update Bot Framework Node.js SDK (`bot-builder`) to 4.x.x | To do |
 | Add a 'Deploy to Azure App Service' button | To do |
 
 ## Contributing
@@ -82,3 +83,8 @@ To get more information about how to get started, please review the following re
 * [Microsoft Bot Builder for Node.js Reference](https://docs.microsoft.com/en-us/bot-framework/nodejs/) (this project uses v3)
 * [Azure Bot Service documentation](https://docs.microsoft.com/en-us/azure/bot-service/?view=azure-bot-service-4.0)
 
+# License
+
+I would like to give credits to IBM Corporation and Vincent Perrin, who wrote the code where this project is based on. The original code can be found on https://github.com/vperrinfr/BotBuilder-Watson.
+
+The original code was published under the Apache License 2.0, so I will do the same. A copy of the Apache License 2.0 cant be downloaded from http://www.apache.org/licenses/LICENSE-2.0, but I have also included it in the [LICENSE](LICENSE) file of this project.

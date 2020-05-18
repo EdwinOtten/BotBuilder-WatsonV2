@@ -16,7 +16,8 @@
 
 var restify = require('restify');
 var builder = require('botbuilder');
-var Conversation = require('watson-developer-cloud/conversation/v1'); // watson sdk
+const AssistantV2 = require('ibm-watson/assistant/v2');
+const watsonAuth = require('ibm-watson/auth');
 
 require('dotenv').config({silent: true});
 
@@ -58,17 +59,15 @@ server.listen(process.env.port || process.env.PORT || 3978, function () {
 
 // Create the service wrapper
 var workspace = process.env.WORKSPACE_ID || '';
-var conv_url = process.env.CONVERSATION_URL || 'https://gateway.watsonplatform.net/assistant/api/';
+var serviceUrl = process.env.SERVICE_URL || 'https://gateway.watsonplatform.net/assistant/api/';
 
-var conversation = new Conversation({
-  // If unspecified here, the CONVERSATION_USERNAME and CONVERSATION_PASSWORD env properties will be checked
-  // After that, the SDK will fall back to the bluemix-provided VCAP_SERVICES environment property
-  // username: '<username>',
-  // password: '<password>',
-  url: conv_url,
-  version_date: Conversation.VERSION_DATE_2017_04_21
-});
-console.log("process.env.WORKSPACE_ID "+ process.env.WORKSPACE_ID); 
+const assistant = new AssistantV2({
+    authenticator: new watsonAuth.getAuthenticatorFromEnvironment('ASSISTANT'),
+    serviceUrl: serviceUrl,
+    version: '2020-04-01'
+  });
+
+console.log("process.env.WORKSPACE_ID "+ workspace); 
 console.log("process.env.appID "+ process.env.appId); 
 console.log("process.env.appPassword "+ process.env.appPassword); 
 
@@ -99,49 +98,75 @@ var bot = new builder.UniversalBot(connector, function (session) {
     //   console.log('No illegal characters in the input: '+session.message.text);
     }
 
-    var payload = {
-        workspace_id: workspace,
-        context:'',
-        input: { text: session.message.text}
-    };
-
     // If the user asked us to start over create a new context
     if ((session.message.text.toLowerCase() == 'start over') || (session.message.text.toLowerCase() == 'start_over')) {
-      var convId = ession.message.address.conversation.id;
+      var convId = session.message.address.conversation.id;
       console.log('Starting a new Conversation for '+convId);
       if (contexts[convId]) 
         delete contexts[convId];
     }
   
-    var conversationContext = findOrCreateContext(session.message.address.conversation.id);	
-    if (!conversationContext) conversationContext = {};
-    payload.context = conversationContext.watsonContext;
+    findOrCreateContext(session.message.address.conversation.id).then(
+      function (sessionId) {
+        if (!sessionId) sessionId = '0';
+        // contexts[convId] = response.result.session_id; // store id for later access
 
-    conversation.message(payload, function(err, response) {
-     if (err) {
-      console.error(err);
-      session.send("ERROR: "+err.message);
-     } else {
-       console.log("Response:\n"+JSON.stringify(response, null, 2));
-       response.output.text.forEach(function(line) {
-         console.log('Sending: '+line);
-         session.send(line);
-       });
-      //  session.send(response.output.text);
-       conversationContext.watsonContext = response.context;
-     }
-    });
+        const params = {
+          input: { text: session.message.text},
+          assistantId: process.env.ASSISTANT_ID,
+          sessionId: sessionId
+        };
+
+        assistant.message(params).then(
+          response => {
+            console.log(response.headers['x-global-transaction-id']);
+
+            console.log("Response:\n"+JSON.stringify(response, null, 2));
+            response.result.output.generic.forEach(function(runtimeResponseGeneric) {
+              if (runtimeResponseGeneric.response_type === 'text') {
+                console.log('Sending: '+runtimeResponseGeneric.text);
+                session.send(runtimeResponseGeneric.text);
+              }
+            });
+          //  session.send(response.output.text);
+            conversationContext.watsonContext = response.result.context.skills;
+          },
+          err => {
+            console.error(err);
+            session.send("ERROR: "+err.message);
+          }
+        );
+      }.bind(this),
+      (rejectionReason) => {
+        console.log("fetch session id failed: "+rejectionReason)
+      }
+    );	
+    
 
 }).set('storage', cosmosStorage);
 
-function findOrCreateContext (convId){
-      // Let's see if we already have a session for the user convId
-    if (!contexts[convId]) {
-        // No session found for user convId, let's create a new one
-        contexts[convId] = {workspaceId: workspace, watsonContext: {'client_type': 'MS_Teams'}};
-        console.log('Creating a new context structure for conversation '+ convId);
-    } else {
-      console.log("Reusing Context:\n"+JSON.stringify(contexts[convId], null, 2));
-    }
-return contexts[convId];
+function findOrCreateContext(convId) {
+
+  // Let's see if we already have a session for the user convId
+  if (contexts[convId]) {
+    return Promise.resolve(contexts[convId]);
+  }
+
+  // No session found for user convId, let's fetch a new one
+  return new Promise((resolve, reject) => { 
+    assistant.createSession({
+      assistantId: process.env.ASSISTANT_ID
+    }).then(
+      response => {
+        console.log('Session created: '+ response.result.session_id);
+        resolve(response.result.session_id);
+      },
+      err => {
+        console.error(err);
+        session.send("ERROR: "+err.message);
+        delete contexts[convId];
+        reject();
+      }
+    );
+  });
 }

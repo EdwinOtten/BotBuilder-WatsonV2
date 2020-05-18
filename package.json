@@ -16,13 +16,13 @@
     "npm": "> 6.x.x"
   },
   "dependencies": {
-    "node-pre-gyp": "^0.13.0",
-    "sqlite3": "^4.0.8",
     "botbuilder": "^3.13.1",
     "botbuilder-azure": "^3.0.4",
     "dotenv": "^2.0.0",
+    "ibm-watson": "^5.5.0",
+    "node-pre-gyp": "^0.13.0",
     "osa-imessage": "^2.1.1",
     "restify": "^5.0.1",
-    "watson-developer-cloud": "^2.31.1"
+    "sqlite3": "^4.0.8"
   }
 }

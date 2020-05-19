@@ -9,9 +9,9 @@ Please note that this is a fork of [Vincent Perrin's repository](https://github.
 |------|--------|
 | Update IBM SDK (replace `watson-developer-cloud` with `ibm-watson` package) | ✅ Done |
 | Update README | ✅ Done |
-| Convert project to typescript | 🔄 In progress |
-| Fix session management (application now creates a new session with IBM for every user message) | To do |
-| Add other storage options for state besides CosmosDB | To do |
+| Convert project to typescript | ✅ Done |
+| Fix session management (application now creates a new session with IBM for every user message) | ✅ Done |
+| Add other storage options for state besides CosmosDB | 🔄 In progress |
 | Update README | To do |
 | Update Bot Framework Node.js SDK (`bot-builder`) to 4.x.x | To do |
 | Add a 'Deploy to Azure App Service' button | To do |

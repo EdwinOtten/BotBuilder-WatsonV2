@@ -1,36 +1,61 @@
 {
-    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
-    "contentVersion": "1.0.0.0",
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "2.0.0.0",
     "parameters": {
         "subscriptionId": {
             "type": "string"
         },
+        "botName": {
+            "type": "string",
+            "maxLength": 24,
+            "defaultValue": ""
+        },
         "name": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 24
         },
         "location": {
-            "type": "string"
+            "type": "string",
+            "defaultValue": "westeurope"
+        },
+        "locationName": {
+            "type": "string",
+            "defaultValue": "West Europe"
         },
         "hostingEnvironment": {
-            "type": "string"
-        },
-        "hostingPlanName": {
-            "type": "string"
+            "type": "string",
+            "defaultValue": ""
         },
         "serverFarmResourceGroup": {
             "type": "string"
         },
         "alwaysOn": {
-            "type": "bool"
+            "type": "bool",
+            "defaultValue": false
         },
-        "currentStack": {
-            "type": "string"
+        "sku": {
+            "type": "string",
+            "defaultValue": "Free"
         },
-        "phpVersion": {
-            "type": "string"
+        "skuCode": {
+            "type": "string",
+            "defaultValue": "F1"
         },
-        "errorLink": {
-            "type": "string"
+        "workerSize": {
+            "type": "string",
+            "defaultValue": "0"
+        },
+        "workerSizeId": {
+            "type": "string",
+            "defaultValue": "0"
+        },
+        "numberOfWorkers": {
+            "type": "string",
+            "defaultValue": "1"
+        },
+        "linuxFxVersion": {
+            "type": "string",
+            "defaultValue": "NODE|12-lts"
         },
         "resourceTags": {
             "type": "object",
@@ -38,17 +63,155 @@
                 "Environment": "Dev",
                 "Project": "Tutorial"
             }
+        },
+        "ASSISTANT_APIKEY": {
+            "type": "string"
+        },
+        "ASSISTANT_IAM_APIKEY": {
+            "type": "string"
+        },
+        "ASSISTANT_URL": {
+            "type": "string"
+        },
+        "ASSISTANT_AUTH_TYPE": {
+            "type": "string",
+            "defaultValue": "iam"
+        },
+        "ASSISTANT_ID": {
+            "type": "string"
+        },
+        "SERVICE_URL": {
+            "type": "string",
+            "defaultValue": "https://api.eu-de.assistant.watson.cloud.ibm.com"
+        },
+        "appId": {
+            "type": "string"
+        },
+        "appPassword": {
+            "type": "string"
         }
     },
+    "variables": {
+        "cosmosDbName": "[toLower(parameters('name'))]",
+        "cosmosDbTags": {
+            "defaultExperience": "Core (SQL)",
+            "hidden-cosmos-mmspecial": "",
+            "CosmosAccountType": "Production"
+        },
+        "hostingPlanName": "[concat(parameters('name'), '-Plan')]"
+    },
     "resources": [
-        {
+        { // Application Insights
+            "apiVersion": "2015-05-01",
+            "name": "[parameters('name')]",
+            "type": "microsoft.insights/components",
+            "location": "[parameters('location')]",
+            "kind": "other",
+            "tags": "[parameters('resourceTags')]",
+            "properties": {
+                "Application_Type": "web",
+                "ApplicationId": "[parameters('name')]",
+                "Request_Source": "rest"
+            }
+        },
+        { // Linux service plan
+            "apiVersion": "2018-02-01",
+            "name": "[variables('hostingPlanName')]",
+            "type": "Microsoft.Web/serverfarms",
+            "location": "[parameters('locationName')]",
+            "kind": "linux",
+            "tags": "[parameters('resourceTags')]",
+            "properties": {
+                "name": "[variables('hostingPlanName')]",
+                "workerSize": "[parameters('workerSize')]",
+                "workerSizeId": "[parameters('workerSizeId')]",
+                "numberOfWorkers": "[parameters('numberOfWorkers')]",
+                "reserved": true,
+                "hostingEnvironment": "[parameters('hostingEnvironment')]"
+            },
+            "sku": {
+                "Tier": "[parameters('sku')]",
+                "Name": "[parameters('skuCode')]"
+            }
+        },
+        { // CosmosDB
+            "apiVersion": "2019-12-12",
+            "kind": "GlobalDocumentDB",
+            "type": "Microsoft.DocumentDb/databaseAccounts",
+            "name": "[variables('cosmosDbName')]",
+            "location": "[parameters('location')]",
+            "tags": "[union(parameters('resourceTags'), variables('cosmosDbTags'))]",
+            "properties": {
+                "databaseAccountOfferType": "Standard",
+                "locations": [
+                    {
+                        "id": "[concat(variables('cosmosDbName'), '-', parameters('location'))]",
+                        "failoverPriority": 0,
+                        "locationName": "[parameters('locationName')]"
+                    }
+                ],
+                "enableMultipleWriteLocations": false,
+                "isVirtualNetworkFilterEnabled": false,
+                "virtualNetworkRules": [],
+                "ipRangeFilter": "104.42.195.92,40.76.54.131,52.176.6.30,52.169.50.45,52.187.184.26",
+                "dependsOn": [],
+                "capabilities": [],
+                "enableFreeTier": false
+            },
+            "resources": [
+                {
+                    "type": "sqlDatabases",
+                    "name": "botdocs",
+                    "apiVersion": "2019-08-01",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosDbName'))]"
+                    ],
+                    "properties": {
+                        "options": {},
+                        "resource": {
+                            "id": "botdocs"
+                        }
+                    },
+                    "resources": [
+                        {
+                            "type": "containers",
+                            "name": "botdata",
+                            "apiVersion": "2019-08-01",
+                            "dependsOn": [
+                                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', variables('cosmosDbName'), 'botdocs')]"
+                            ],
+                            "properties": {
+                                "resource": {
+                                    "id": "botdata",
+                                    "partitionKey": {
+                                        "paths": [
+                                            "/id"
+                                        ],
+                                        "kind": "Hash"
+                                    }
+                                },
+                                "options": {
+                                    "throughput": "400"
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        { // Web App
             "apiVersion": "2018-11-01",
             "name": "[parameters('name')]",
             "type": "Microsoft.Web/sites",
-            "location": "[parameters('location')]",
+            "location": "[parameters('locationName')]",
             "tags": "[parameters('resourceTags')]",
+            "identity": {
+                "type": "SystemAssigned"
+            },
             "dependsOn": [
-                "microsoft.insights/components/BotBuilder-Watson-Adapter"
+                "[resourceId('microsoft.insights/components/', parameters('name'))]",
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/', variables('cosmosDbName'))]",
+                "[resourceId('Microsoft.Web/serverfarms/', variables('hostingPlanName'))]"
             ],
             "properties": {
                 "name": "[parameters('name')]",
@@ -56,11 +219,11 @@
                     "appSettings": [
                         {
                             "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
-                            "value": "[reference('microsoft.insights/components/BotBuilder-Watson-Adapter', '2015-05-01').InstrumentationKey]"
+                            "value": "[reference(concat('microsoft.insights/components/', parameters('name')), '2015-05-01').InstrumentationKey]"
                         },
                         {
                             "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
-                            "value": "[reference('microsoft.insights/components/BotBuilder-Watson-Adapter', '2015-05-01').ConnectionString]"
+                            "value": "[reference(concat('microsoft.insights/components/', parameters('name')), '2015-05-01').ConnectionString]"
                         },
                         {
                             "name": "ApplicationInsightsAgent_EXTENSION_VERSION",
@@ -71,36 +234,229 @@
                             "value": "default"
                         },
                         {
-                            "name": "ANCM_ADDITIONAL_ERROR_PAGE_LINK",
-                            "value": "[parameters('errorLink')]"
-                        }
-                    ],
-                    "metadata": [
+                            "name": "ASSISTANT_APIKEY",
+                            "value": "[parameters('ASSISTANT_APIKEY')]"
+                        },
                         {
-                            "name": "CURRENT_STACK",
-                            "value": "[parameters('currentStack')]"
+                            "name": "ASSISTANT_IAM_APIKEY",
+                            "value": "[parameters('ASSISTANT_IAM_APIKEY')]"
+                        },
+                        {
+                            "name": "ASSISTANT_URL",
+                            "value": "[parameters('ASSISTANT_URL')]"
+                        },
+                        {
+                            "name": "ASSISTANT_AUTH_TYPE",
+                            "value": "[parameters('ASSISTANT_AUTH_TYPE')]"
+                        },
+                        {
+                            "name": "ASSISTANT_ID",
+                            "value": "[parameters('ASSISTANT_ID')]"
+                        },
+                        {
+                            "name": "SERVICE_URL",
+                            "value": "[parameters('SERVICE_URL')]"
+                        },
+                        {
+                            "name": "appId",
+                            "value": "[parameters('appId')]"
+                        },
+                        {
+                            "name": "appPassword",
+                            "value": "[parameters('appPassword')]"
+                        },
+                        {
+                            "name": "storageKey",
+                            "value": "[listKeys(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosDbName')), '2019-08-01').primaryMasterKey]"
+                        },
+                        {
+                            "name": "storageURL",
+                            "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosDbName')), '2019-08-01').documentEndpoint]"
+                            // "value": "[concat('https://', variables('cosmosDbName'),'.documents.azure.com:443')]"
                         }
+                        // ,
+                        // {
+                        //     "name": "KeyVaultName",
+                        //     "value": "[parameters('name')]"
+                        // }
                     ],
-                    "phpVersion": "[parameters('phpVersion')]",
+                    "linuxFxVersion": "[parameters('linuxFxVersion')]",
                     "alwaysOn": "[parameters('alwaysOn')]"
                 },
-                "serverFarmId": "[concat('/subscriptions/', parameters('subscriptionId'),'/resourcegroups/', parameters('serverFarmResourceGroup'), '/providers/Microsoft.Web/serverfarms/', parameters('hostingPlanName'))]",
+                "serverFarmId": "[concat('/subscriptions/', parameters('subscriptionId'),'/resourcegroups/', parameters('serverFarmResourceGroup'), '/providers/Microsoft.Web/serverfarms/', variables('hostingPlanName'))]",
                 "hostingEnvironment": "[parameters('hostingEnvironment')]",
-                "clientAffinityEnabled": true
+                "clientAffinityEnabled": false
             }
         },
         {
-            "apiVersion": "2015-05-01",
-            "kind": "other",
-            "name": "BotBuilder-Watson-Adapter",
-            "type": "microsoft.insights/components",
-            "location": "westeurope",
-            "tags": "[parameters('resourceTags')]",
+            "type": "Microsoft.BotService/botServices",
+            "apiVersion": "2017-12-01",
+            "name": "[parameters('botName')]",
+            "location": "global",
+            "dependsOn": [
+                "[resourceId('microsoft.insights/components/', parameters('name'))]",
+                "[resourceId('Microsoft.Web/sites/', parameters('name'))]"
+            ],
+            "sku": {
+                "name": "[parameters('sku')]"
+            },
+            "kind": "bot",
             "properties": {
-                "Application_Type": "web",
-                "ApplicationId": "[parameters('name')]",
-                "Request_Source": "rest"
+                "name": "[parameters('botName')]",
+                "displayName": "[parameters('botName')]",
+                "endpoint": "[concat('https://', reference(resourceId('Microsoft.Web/sites', parameters('name')), '2018-02-01').defaultHostName, '/api/messages')]",
+                "msaAppId": "[parameters('appId')]",
+                "developerAppInsightsApplicationId": "[reference(resourceId('microsoft.insights/components/', parameters('name')), '2015-05-01').AppId]",
+                "developerAppInsightKey": "[reference(resourceId('microsoft.insights/components/', parameters('name')), '2015-05-01').InstrumentationKey]"
             }
         }
+        // ,
+        // { // Key Vault
+        //     "type": "Microsoft.KeyVault/vaults",
+        //     "name": "[parameters('name')]",
+        //     "apiVersion": "2016-10-01",
+        //     "tags": "[parameters('resourceTags')]",
+        //     "location": "[parameters('locationName')]",
+        //     "dependsOn": [
+        //         "[resourceId('Microsoft.DocumentDb/databaseAccounts', parameters('name'))]",
+        //         "[resourceId('Microsoft.Web/sites', parameters('name'))]"
+        //     ],
+        //     "properties": {
+        //         "sku": {
+        //             "family": "A",
+        //             "name": "standard"
+        //         },
+        //         "tenantId": "[subscription().tenantid]",
+        //         "accessPolicies": [
+        //             { // Allow the Web App to access secrets (via Managed Identity)
+        //                 "tenantId": "[subscription().tenantid]",
+        //                 "objectId": "[reference(resourceId('Microsoft.Web/sites', parameters('name')),'2019-08-01', 'full').identity.principalId]",
+        //                 "permissions": {
+        //                     "keys": [],
+        //                     "secrets": [
+        //                         "get",
+        //                         "list"
+        //                     ],
+        //                     "certificates": []
+        //                 }
+        //             }
+        //         ],
+        //         "enabledForDeployment": false,
+        //         "enabledForDiskEncryption": false,
+        //         "enabledForTemplateDeployment": false
+        //     },
+        //     "resources": [ // Secrets
+        //         {
+        //             "type": "secrets",
+        //             "name": "ASSISTANT-APIKEY",
+        //             "apiVersion": "2016-10-01",
+        //             "properties": {
+        //                 "value": ""
+        //             },
+        //             "dependsOn":[
+        //                 "[resourceId('Microsoft.KeyVault/vaults', parameters('name'))]"
+        //             ]
+        //         },
+        //         {
+        //             "type": "secrets",
+        //             "name": "ASSISTANT-IAM-APIKEY",
+        //             "apiVersion": "2016-10-01",
+        //             "properties": {
+        //                 "value": ""
+        //             },
+        //             "dependsOn":[
+        //                 "[resourceId('Microsoft.KeyVault/vaults', parameters('name'))]"
+        //             ]
+        //         },
+        //         {
+        //             "type": "secrets",
+        //             "name": "ASSISTANT-URL",
+        //             "apiVersion": "2016-10-01",
+        //             "properties": {
+        //                 "value": ""
+        //             },
+        //             "dependsOn":[
+        //                 "[resourceId('Microsoft.KeyVault/vaults', parameters('name'))]"
+        //             ]
+        //         },
+        //         {
+        //             "type": "secrets",
+        //             "name": "ASSISTANT-AUTH-TYPE",
+        //             "apiVersion": "2016-10-01",
+        //             "properties": {
+        //                 "value": "iam"
+        //             },
+        //             "dependsOn":[
+        //                 "[resourceId('Microsoft.KeyVault/vaults', parameters('name'))]"
+        //             ]
+        //         },
+        //         {
+        //             "type": "secrets",
+        //             "name": "ASSISTANT-ID",
+        //             "apiVersion": "2016-10-01",
+        //             "properties": {
+        //                 "value": ""
+        //             },
+        //             "dependsOn":[
+        //                 "[resourceId('Microsoft.KeyVault/vaults', parameters('name'))]"
+        //             ]
+        //         },
+        //         {
+        //             "type": "secrets",
+        //             "name": "SERVICE-URL",
+        //             "apiVersion": "2016-10-01",
+        //             "properties": {
+        //                 "value": "https://api.eu-de.assistant.watson.cloud.ibm.com"
+        //             },
+        //             "dependsOn":[
+        //                 "[resourceId('Microsoft.KeyVault/vaults', parameters('name'))]"
+        //             ]
+        //         },
+        //         {
+        //             "type": "secrets",
+        //             "name": "appId",
+        //             "apiVersion": "2016-10-01",
+        //             "properties": {
+        //                 "value": ""
+        //             },
+        //             "dependsOn":[
+        //                 "[resourceId('Microsoft.KeyVault/vaults', parameters('name'))]"
+        //             ]
+        //         },
+        //         {
+        //             "type": "secrets",
+        //             "name": "appPassword",
+        //             "apiVersion": "2016-10-01",
+        //             "properties": {
+        //                 "value": ""
+        //             },
+        //             "dependsOn":[
+        //                 "[resourceId('Microsoft.KeyVault/vaults', parameters('name'))]"
+        //             ]
+        //         },
+        //         {
+        //             "type": "secrets",
+        //             "name": "storageKey",
+        //             "apiVersion": "2016-10-01",
+        //             "properties": {
+        //                 "value": ""
+        //             },
+        //             "dependsOn":[
+        //                 "[resourceId('Microsoft.KeyVault/vaults', parameters('name'))]"
+        //             ]
+        //         },
+        //         {
+        //             "type": "secrets",
+        //             "name": "storageURL",
+        //             "apiVersion": "2016-10-01",
+        //             "properties": {
+        //                 "value": ""
+        //             },
+        //             "dependsOn":[
+        //                 "[resourceId('Microsoft.KeyVault/vaults', parameters('name'))]"
+        //             ]
+        //         }
+        //     ]
+        // }
     ]
 }

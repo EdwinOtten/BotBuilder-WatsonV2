@@ -37,25 +37,9 @@
             "type": "string",
             "defaultValue": "Free"
         },
-        "skuCode": {
+        "nodeVersion": {
             "type": "string",
-            "defaultValue": "F1"
-        },
-        "workerSize": {
-            "type": "string",
-            "defaultValue": "0"
-        },
-        "workerSizeId": {
-            "type": "string",
-            "defaultValue": "0"
-        },
-        "numberOfWorkers": {
-            "type": "string",
-            "defaultValue": "1"
-        },
-        "linuxFxVersion": {
-            "type": "string",
-            "defaultValue": "NODE|12-lts"
+            "defaultValue": "12.13.0"
         },
         "resourceTags": {
             "type": "object",
@@ -112,26 +96,6 @@
                 "Application_Type": "web",
                 "ApplicationId": "[parameters('name')]",
                 "Request_Source": "rest"
-            }
-        },
-        { // Linux service plan
-            "apiVersion": "2018-02-01",
-            "name": "[variables('hostingPlanName')]",
-            "type": "Microsoft.Web/serverfarms",
-            "location": "[parameters('locationName')]",
-            "kind": "linux",
-            "tags": "[parameters('resourceTags')]",
-            "properties": {
-                "name": "[variables('hostingPlanName')]",
-                "workerSize": "[parameters('workerSize')]",
-                "workerSizeId": "[parameters('workerSizeId')]",
-                "numberOfWorkers": "[parameters('numberOfWorkers')]",
-                "reserved": true,
-                "hostingEnvironment": "[parameters('hostingEnvironment')]"
-            },
-            "sku": {
-                "Tier": "[parameters('sku')]",
-                "Name": "[parameters('skuCode')]"
             }
         },
         { // CosmosDB
@@ -211,7 +175,6 @@
             "dependsOn": [
                 "[resourceId('microsoft.insights/components/', parameters('name'))]",
                 "[resourceId('Microsoft.DocumentDB/databaseAccounts/', variables('cosmosDbName'))]",
-                "[resourceId('Microsoft.Web/serverfarms/', variables('hostingPlanName'))]"
             ],
             "properties": {
                 "name": "[parameters('name')]",
@@ -219,11 +182,11 @@
                     "appSettings": [
                         {
                             "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
-                            "value": "[reference(concat('microsoft.insights/components/', parameters('name')), '2015-05-01').InstrumentationKey]"
+                            "value": "[reference(resourceId('microsoft.insights/components/', parameters('name')), '2015-05-01').InstrumentationKey]"
                         },
                         {
                             "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
-                            "value": "[reference(concat('microsoft.insights/components/', parameters('name')), '2015-05-01').ConnectionString]"
+                            "value": "[reference(resourceId('microsoft.insights/components/', parameters('name')), '2015-05-01').ConnectionString]"
                         },
                         {
                             "name": "ApplicationInsightsAgent_EXTENSION_VERSION",
@@ -232,6 +195,10 @@
                         {
                             "name": "XDT_MicrosoftApplicationInsights_Mode",
                             "value": "default"
+                        },
+                        {
+                            "name": "WEBSITE_NODE_DEFAULT_VERSION",
+                            "value": "[parameters('nodeVersion')]"
                         },
                         {
                             "name": "ASSISTANT_APIKEY",
@@ -280,12 +247,19 @@
                         //     "value": "[parameters('name')]"
                         // }
                     ],
-                    "linuxFxVersion": "[parameters('linuxFxVersion')]",
+                    "metadata": [
+                        {
+                            "name": "CURRENT_STACK",
+                            "value": "node"
+                        }
+                    ],
+                    "phpVersion": "OFF",
+                    "nodeVersion": "[parameters('nodeVersion')]",
                     "alwaysOn": "[parameters('alwaysOn')]"
                 },
                 "serverFarmId": "[concat('/subscriptions/', parameters('subscriptionId'),'/resourcegroups/', parameters('serverFarmResourceGroup'), '/providers/Microsoft.Web/serverfarms/', variables('hostingPlanName'))]",
                 "hostingEnvironment": "[parameters('hostingEnvironment')]",
-                "clientAffinityEnabled": false
+                "clientAffinityEnabled": true
             }
         },
         {

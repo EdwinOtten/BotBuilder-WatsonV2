@@ -37,6 +37,22 @@
             "type": "string",
             "defaultValue": "Free"
         },
+        "skuCode": {
+            "type": "string",
+            "defaultValue": "F1"
+        },
+        "workerSize": {
+            "type": "string",
+            "defaultValue": "0"
+        },
+        "workerSizeId": {
+            "type": "string",
+            "defaultValue": "0"
+        },
+        "numberOfWorkers": {
+            "type": "string",
+            "defaultValue": "1"
+        },
         "nodeVersion": {
             "type": "string",
             "defaultValue": "12.13.0"
@@ -96,6 +112,26 @@
                 "Application_Type": "web",
                 "ApplicationId": "[parameters('name')]",
                 "Request_Source": "rest"
+            }
+        },
+        { // Window App Service plan
+            "apiVersion": "2018-02-01",
+            "name": "[variables('hostingPlanName')]",
+            "type": "Microsoft.Web/serverfarms",
+            "location": "[parameters('locationName')]",
+            "kind": "",
+            "tags": {},
+            "properties": {
+                "name": "[variables('hostingPlanName')]",
+                "workerSize": "[parameters('workerSize')]",
+                "workerSizeId": "[parameters('workerSizeId')]",
+                "numberOfWorkers": "[parameters('numberOfWorkers')]",
+                "reserved": false,
+                "hostingEnvironment": "[parameters('hostingEnvironment')]"
+            },
+            "sku": {
+                "Tier": "[parameters('sku')]",
+                "Name": "[parameters('skuCode')]"
             }
         },
         { // CosmosDB
@@ -175,6 +211,7 @@
             "dependsOn": [
                 "[resourceId('microsoft.insights/components/', parameters('name'))]",
                 "[resourceId('Microsoft.DocumentDB/databaseAccounts/', variables('cosmosDbName'))]",
+                "[resourceId('Microsoft.Web/serverfarms/', variables('hostingPlanName'))]"
             ],
             "properties": {
                 "name": "[parameters('name')]",

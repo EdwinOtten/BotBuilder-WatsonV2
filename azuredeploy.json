@@ -1,10 +1,7 @@
 {
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-    "contentVersion": "2.0.0.0",
+    "contentVersion": "3.0.0.0",
     "parameters": {
-        "subscriptionId": {
-            "type": "string"
-        },
         "botName": {
             "type": "string",
             "maxLength": 24,
@@ -16,18 +13,14 @@
         },
         "location": {
             "type": "string",
-            "defaultValue": "westeurope"
+            "defaultValue": "[resourceGroup().location]",
+            "metadata": {
+                "description": "Location for all resources"
+            }
         },
         "locationName": {
             "type": "string",
             "defaultValue": "West Europe"
-        },
-        "hostingEnvironment": {
-            "type": "string",
-            "defaultValue": ""
-        },
-        "serverFarmResourceGroup": {
-            "type": "string"
         },
         "alwaysOn": {
             "type": "bool",
@@ -37,25 +30,9 @@
             "type": "string",
             "defaultValue": "Free"
         },
-        "skuCode": {
-            "type": "string",
-            "defaultValue": "F1"
-        },
-        "workerSize": {
-            "type": "string",
-            "defaultValue": "0"
-        },
-        "workerSizeId": {
-            "type": "string",
-            "defaultValue": "0"
-        },
-        "numberOfWorkers": {
-            "type": "string",
-            "defaultValue": "1"
-        },
         "nodeVersion": {
             "type": "string",
-            "defaultValue": "12.13.0"
+            "defaultValue": "~10"
         },
         "resourceTags": {
             "type": "object",
@@ -115,23 +92,17 @@
             }
         },
         { // Window App Service plan
-            "apiVersion": "2018-02-01",
             "name": "[variables('hostingPlanName')]",
             "type": "Microsoft.Web/serverfarms",
-            "location": "[parameters('locationName')]",
-            "kind": "",
-            "tags": {},
+            "location": "[parameters('location')]",
+            "apiVersion": "2018-02-01",
+            "sku": {
+                "name": "[parameters('sku')]"
+            },
+            "dependsOn": [],
             "properties": {
                 "name": "[variables('hostingPlanName')]",
-                "workerSize": "[parameters('workerSize')]",
-                "workerSizeId": "[parameters('workerSizeId')]",
-                "numberOfWorkers": "[parameters('numberOfWorkers')]",
-                "reserved": false,
-                "hostingEnvironment": "[parameters('hostingEnvironment')]"
-            },
-            "sku": {
-                "Tier": "[parameters('sku')]",
-                "Name": "[parameters('skuCode')]"
+                "numberOfWorkers": 1
             }
         },
         { // CosmosDB
@@ -201,8 +172,9 @@
         },
         { // Web App
             "apiVersion": "2018-11-01",
-            "name": "[parameters('name')]",
             "type": "Microsoft.Web/sites",
+            "kind": "app",
+            "name": "[parameters('name')]",
             "location": "[parameters('locationName')]",
             "tags": "[parameters('resourceTags')]",
             "identity": {
@@ -294,8 +266,7 @@
                     "nodeVersion": "[parameters('nodeVersion')]",
                     "alwaysOn": "[parameters('alwaysOn')]"
                 },
-                "serverFarmId": "[concat('/subscriptions/', parameters('subscriptionId'),'/resourcegroups/', parameters('serverFarmResourceGroup'), '/providers/Microsoft.Web/serverfarms/', variables('hostingPlanName'))]",
-                "hostingEnvironment": "[parameters('hostingEnvironment')]",
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
                 "clientAffinityEnabled": true
             }
         },

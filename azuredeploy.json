@@ -30,6 +30,10 @@
             "type": "string",
             "defaultValue": "Free"
         },
+        "skuCode": {
+            "type": "string",
+            "defaultValue": "F1"
+        },
         "nodeVersion": {
             "type": "string",
             "defaultValue": "~10"
@@ -97,7 +101,8 @@
             "location": "[parameters('location')]",
             "apiVersion": "2018-02-01",
             "sku": {
-                "name": "[parameters('sku')]"
+                "Tier": "[parameters('sku')]",
+                "Name": "[parameters('skuCode')]"
             },
             "dependsOn": [],
             "properties": {
